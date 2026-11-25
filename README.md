@@ -4,6 +4,41 @@
 
 Paper2Prototype is a full-stack AI research engineering platform that helps students, researchers, and developers transform academic PDF papers into structured analyses, editable experiment blueprints, verified dataset/library recommendations, modular Python starter code, sandboxed executions, reproducibility audits, and downloadable PDF technical reports.
 
+**Live Deployed Application:** https://paper2-prototype-six.vercel.app/
+
+---
+
+## Hackathon Submission Overview
+
+### Chosen Vertical
+**AI-Powered Research-to-Experiment Automation & Developer/Academic Productivity** — enabling students, researchers, and ML engineers to bridge the gap between theoretical academic papers and reproducible, executable prototypes.
+
+### Approach and Logic
+- **Zero-Hallucination Fact Extraction:** Long papers are chunked across all pages with page references retained (never silently truncated), and extracted facts are strictly separated from AI-generated suggestions.
+- **Resilient AI Orchestration:** Server-side Supabase Edge Functions invoke Google Gemini with automatic multi-model fallback (`gemini-3.5-flash` → `gemini-3.5-flash-lite` → `gemini-3.6-flash` → `gemini-3-flash-preview` → `gemini-3.8-flash`) and retry backoff, plus automatic Python `typing` import sanitization on generated code.
+- **Verified Resource Grounding:** Dataset and library recommendations perform live lookups against Hugging Face Hub, PyPI, and paper-cited URLs (with SSRF filtering) rather than fabricating links.
+- **Defense-in-Depth Execution:** Arbitrary AI-generated Python code is **never** executed on the app server or Edge Functions. Users can execute code in:
+  1. **Browser Sandbox (Pyodide WebAssembly Worker)** — zero-setup, client-side isolation with a 60s hard timeout.
+  2. **Local Machine Sandbox (`sandbox-runner/`)** — local Docker/FastAPI runner on `localhost:8080`.
+  3. **Cloud Sandbox (Render Docker Container)** — isolated container with CPU/RAM/timeout limits, stripped environment variables, symlink/path-traversal protection, and `--network none` support.
+- **Transparent Reproducibility Scoring:** Evaluates documentation completeness out of 100 across 7 explicit criteria (clearly distinguishing documentation completeness from guaranteed experimental reproducibility).
+
+### How the Solution Works
+1. **Stage 1 — PDF Upload:** Client-side PDF.js validation (magic-byte, 50 MB limit, encrypted/corrupt detection), page-by-page text extraction, optional in-browser Tesseract.js OCR for scanned PDFs, and private storage in Supabase Storage.
+2. **Stage 2 & 3 — Paper Analysis & Methodology Extraction:** Secure Edge Function (`analyze-paper`) extracts 14 structured fields with page citations and computes the Research Reproducibility Score.
+3. **Stage 4 — Experiment Blueprint:** Generates editable Beginner, Intermediate, and Advanced implementation plans (`generate-blueprint`).
+4. **Stage 5 — Dataset & Resource Finder:** Recommends datasets and Python libraries with live availability checks (`recommend-resources`).
+5. **Stage 6 — Python Code Generator:** Generates a modular multi-file starter project (`generate-code`) viewable/editable in Monaco Editor with Explain Code (`explain-code`) and ZIP export.
+6. **Stage 7 & 8 — Experiment Execution & Result Analysis:** Executes code in Browser Pyodide, Local Machine, or Render Cloud Sandbox (`execute-experiment`), captures real `stdout`/`stderr`, artifacts, and `METRICS_JSON`, and plots measured vs. paper-reported charts in Recharts.
+7. **Stage 9 — Final Report Generation:** Exports a 12-section technical PDF report (`jspdf`) summarizing the paper, blueprint, code, actual execution results, and reproducibility audit.
+
+### Assumptions Made
+- **PDF Readability:** Text-based PDFs extract cleanly via PDF.js; image-only/scanned PDFs require the built-in in-browser OCR step before AI analysis.
+- **Synthetic Fallback for Missing Datasets:** Because many papers reference private or large external datasets, generated `main.py` prototypes default to a clearly logged synthetic validation dataset when no local dataset directory is supplied.
+- **Browser vs. Container Runtimes:** The zero-setup Browser Sandbox (Pyodide) supports pure-Python and WebAssembly scientific packages (`numpy`, `scipy`, `scikit-learn`, `pandas`, `matplotlib`), whereas native/GPU frameworks (`torch`, `tensorflow`) require the Local Machine or Cloud Docker Sandbox.
+- **Free-Tier Cold Starts:** When hosted on Render's free Docker tier, the first Cloud Sandbox request after 15 minutes of idle time may take ~30–50 seconds to wake up.
+- **Strict User Ownership:** Every database table and storage bucket enforces Supabase Row Level Security (`auth.uid() = user_id`), assuming authenticated per-user workspaces (with a clearly labeled `DEMO DATA` sample project for instant exploration).
+
 ---
 
 ## Architecture & Tech Stack
